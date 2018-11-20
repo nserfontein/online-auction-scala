@@ -3,6 +3,7 @@ package com.example.auction.transaction.impl
 import java.util.UUID
 
 import akka.Done
+import com.lightbend.lagom.scaladsl.api.transport.Forbidden
 import com.lightbend.lagom.scaladsl.persistence.PersistentEntity
 
 class TransactionEntity extends PersistentEntity {
@@ -37,7 +38,20 @@ class TransactionEntity extends PersistentEntity {
   }
 
   private val negotiatingDelivery = {
-    Actions()
+    Actions().onReadOnlyCommand[StartTransaction, Done] {
+      case (StartTransaction(_), ctx, _) => ctx.reply(Done)
+    }.onCommand[SubmitDeliveryDetails, Done] {
+      case (SubmitDeliveryDetails(userId, deliveryData), ctx, state) =>
+        if (userId == state.transaction.get.winner)        {
+          ctx.thenPersist(DeliveryDetailsSubmitted(UUID.fromString(entityId), deliveryData))(_ => ctx.reply(Done))
+        } else {
+          throw Forbidden("Only the auction winner can submit delivery details")
+        }
+    }.onEvent {
+      case (DeliveryDetailsSubmitted(itemId, deliveryData), state) =>
+        state.updateDeliveryData(deliveryData)
+    }
+      .orElse(getTransactionHandler)
     // TODO: Complete
   }
 

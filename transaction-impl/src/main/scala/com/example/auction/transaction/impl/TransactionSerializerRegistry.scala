@@ -9,8 +9,10 @@ object TransactionSerializerRegistry extends JsonSerializerRegistry {
     JsonSerializer[TransactionState],
     // Commands and replies
     JsonSerializer[StartTransaction],
+    JsonSerializer[SubmitDeliveryDetails],
     // Events
-    JsonSerializer[TransactionStarted]
+    JsonSerializer[TransactionStarted],
+    JsonSerializer[DeliveryDetailsSubmitted]
   )
 
 }

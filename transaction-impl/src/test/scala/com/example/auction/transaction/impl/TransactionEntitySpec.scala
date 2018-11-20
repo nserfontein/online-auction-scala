@@ -23,6 +23,7 @@ class TransactionEntitySpec extends WordSpec with Matchers with BeforeAndAfterAl
 
   private val transaction = Transaction(itemId, creator, winner, itemData, 2000)
   private val startTransaction = StartTransaction(transaction)
+  private val submitDeliveryDetails = SubmitDeliveryDetails(winner, deliveryData)
 
   private def withTestDriver(block: PersistentEntityTestDriver[TransactionCommand, TransactionEvent, TransactionState] => Unit): Unit = {
     val driver = new PersistentEntityTestDriver(system, new TransactionEntity, itemId.toString)
@@ -40,6 +41,13 @@ class TransactionEntitySpec extends WordSpec with Matchers with BeforeAndAfterAl
       outcome.state.status should ===(TransactionStatus.NegotiatingDelivery)
       outcome.state.transaction should ===(Some(transaction))
       outcome.events should contain only TransactionStarted(itemId, transaction)
+    }
+
+    "emit event when submitting delivery details" in withTestDriver { driver =>
+      driver.run(startTransaction)
+      val outcome = driver.run(submitDeliveryDetails)
+      outcome.state.status should ===(TransactionStatus.NegotiatingDelivery)
+      outcome.events should contain only DeliveryDetailsSubmitted(itemId, deliveryData)
     }
 
   }
