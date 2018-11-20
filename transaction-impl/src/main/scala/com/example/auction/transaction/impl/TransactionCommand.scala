@@ -23,8 +23,10 @@ object SubmitDeliveryDetails {
   implicit val format: Format[SubmitDeliveryDetails] = Json.format
 }
 
-case object GetTransaction extends TransactionCommand with ReplyType[TransactionState] {
-  implicit val format: Format[GetTransaction.type] = JsonSerializer.emptySingletonFormat(GetTransaction)
+case class GetTransaction(userId: UUID) extends TransactionCommand with ReplyType[TransactionState]
+
+object GetTransaction {
+  implicit val format: Format[GetTransaction] = Json.format
 }
 
 case class SetDeliveryPrice(userId: UUID, deliveryPrice: Int) extends TransactionCommand with ReplyType[Done]

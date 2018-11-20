@@ -31,6 +31,7 @@ class TransactionEntitySpec extends WordSpec with Matchers with BeforeAndAfterAl
   private val submitPaymentDetails = SubmitPaymentDetails(winner, payment)
   private val approvePayment = SubmitPaymentStatus(creator, PaymentStatus.Approved)
   private val rejectPayment = SubmitPaymentStatus(creator, PaymentStatus.Rejected)
+  private val getTransaction = GetTransaction(creator)
 
   private def withTestDriver(block: PersistentEntityTestDriver[TransactionCommand, TransactionEvent, TransactionState] => Unit): Unit = {
     val driver = new PersistentEntityTestDriver(system, new TransactionEntity, itemId.toString)
@@ -153,6 +154,19 @@ class TransactionEntitySpec extends WordSpec with Matchers with BeforeAndAfterAl
       driver.run(submitPaymentDetails)
       val hacker = UUID.randomUUID
       val invalid = SubmitPaymentStatus(hacker, PaymentStatus.Rejected)
+      a[Forbidden] should be thrownBy driver.run(invalid)
+    }
+
+    "allow see transaction by item creator" in withTestDriver { driver =>
+      driver.run(startTransaction)
+      val outcome = driver.run(getTransaction)
+      outcome.replies should contain only outcome.state
+    }
+
+    "forbid see transaction by non-winner or non-creator" in withTestDriver { driver =>
+      driver.run(startTransaction)
+      val hacker = UUID.randomUUID
+      val invalid = GetTransaction(hacker)
       a[Forbidden] should be thrownBy driver.run(invalid)
     }
 

@@ -8,6 +8,7 @@ object TransactionSerializerRegistry extends JsonSerializerRegistry {
     // State
     JsonSerializer[TransactionState],
     // Commands and replies
+    JsonSerializer[GetTransaction],
     JsonSerializer[StartTransaction],
     JsonSerializer[SubmitDeliveryDetails],
     JsonSerializer[SetDeliveryPrice],
