@@ -5,6 +5,7 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import com.example.auction.item.api.ItemData
+import com.lightbend.lagom.scaladsl.api.transport.Forbidden
 import com.lightbend.lagom.scaladsl.playjson.JsonSerializerRegistry
 import com.lightbend.lagom.scaladsl.testkit.PersistentEntityTestDriver
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
@@ -50,7 +51,13 @@ class TransactionEntitySpec extends WordSpec with Matchers with BeforeAndAfterAl
       outcome.events should contain only DeliveryDetailsSubmitted(itemId, deliveryData)
     }
 
-  }
+    "forbid submitting delivery details by non-buyer" in withTestDriver { driver =>
+      driver.run(startTransaction)
+      val hacker = UUID.randomUUID()
+      val invalid = SubmitDeliveryDetails(hacker, deliveryData)
+      a[Forbidden] should be thrownBy driver.run(invalid)
+    }
 
+  }
 
 }
