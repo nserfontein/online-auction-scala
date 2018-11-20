@@ -36,3 +36,9 @@ case class ApproveDeliveryDetails(userId: UUID) extends TransactionCommand with 
 object ApproveDeliveryDetails {
   implicit val format: Format[ApproveDeliveryDetails] = Json.format
 }
+
+case class SubmitPaymentDetails(userId: UUID, payment: Payment) extends TransactionCommand with ReplyType[Done]
+
+object SubmitPaymentDetails {
+  implicit val format: Format[SubmitPaymentDetails] = Json.format
+}

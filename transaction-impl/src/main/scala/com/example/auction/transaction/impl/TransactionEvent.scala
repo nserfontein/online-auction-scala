@@ -37,3 +37,9 @@ case class DeliveryDetailsApproved(itemId: UUID) extends TransactionEvent
 object DeliveryDetailsApproved {
   implicit val format: Format[DeliveryDetailsApproved] = Json.format
 }
+
+case class PaymentDetailsSubmitted(itemId: UUID, payment: Payment) extends TransactionEvent
+
+object PaymentDetailsSubmitted {
+  implicit val format: Format[PaymentDetailsSubmitted] = Json.format
+}

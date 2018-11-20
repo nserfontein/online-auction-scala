@@ -5,6 +5,7 @@ import java.util.UUID
 
 import akka.actor.ActorSystem
 import com.example.auction.item.api.ItemData
+import com.example.auction.transaction.impl
 import com.lightbend.lagom.scaladsl.api.transport.Forbidden
 import com.lightbend.lagom.scaladsl.playjson.JsonSerializerRegistry
 import com.lightbend.lagom.scaladsl.testkit.PersistentEntityTestDriver
@@ -27,6 +28,7 @@ class TransactionEntitySpec extends WordSpec with Matchers with BeforeAndAfterAl
   private val submitDeliveryDetails = SubmitDeliveryDetails(winner, deliveryData)
   private val setDeliveryPrice = SetDeliveryPrice(creator, deliveryPrice)
   private val approveDeliveryDetails = ApproveDeliveryDetails(creator)
+  private val submitPaymentDetails = SubmitPaymentDetails(winner, payment)
 
   private def withTestDriver(block: PersistentEntityTestDriver[TransactionCommand, TransactionEvent, TransactionState] => Unit): Unit = {
     val driver = new PersistentEntityTestDriver(system, new TransactionEntity, itemId.toString)
@@ -82,6 +84,31 @@ class TransactionEntitySpec extends WordSpec with Matchers with BeforeAndAfterAl
       val outcome = driver.run(approveDeliveryDetails)
       outcome.state.status should ===(TransactionStatus.PaymentPending)
       outcome.events should contain only DeliveryDetailsApproved(itemId)
+    }
+
+    "forbid approve delivery details by non-seller" in withTestDriver { driver =>
+      driver.run(startTransaction)
+      driver.run(submitDeliveryDetails)
+      driver.run(setDeliveryPrice)
+      val hacker = UUID.randomUUID()
+      val invalid = impl.ApproveDeliveryDetails(hacker)
+      a[Forbidden] should be thrownBy driver.run(invalid)
+    }
+
+    "forbid approve empty delivery details" in withTestDriver { driver =>
+      driver.run(startTransaction)
+      a[Forbidden] should be thrownBy driver.run(approveDeliveryDetails)
+    }
+
+    "emit event when submitting payment details" in withTestDriver { driver =>
+      driver.run(startTransaction)
+      driver.run(submitDeliveryDetails)
+      driver.run(setDeliveryPrice)
+      driver.run(approveDeliveryDetails)
+      val outcome = driver.run(submitPaymentDetails)
+      outcome.state.status should ===(TransactionStatus.PaymentSubmitted)
+      outcome.state.transaction.get.payment.get should ===(payment)
+      outcome.events should contain only PaymentDetailsSubmitted(itemId, payment)
     }
 
   }

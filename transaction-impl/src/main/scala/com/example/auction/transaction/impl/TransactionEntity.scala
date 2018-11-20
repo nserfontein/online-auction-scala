@@ -17,6 +17,7 @@ class TransactionEntity extends PersistentEntity {
   override def behavior: Behavior = {
     case TransactionState(_, TransactionStatus.NotStarted) => notStarted
     case TransactionState(_, TransactionStatus.NegotiatingDelivery) => negotiatingDelivery
+    case TransactionState(_, TransactionStatus.PaymentPending) => paymentPending
     // TODO: Complete
   }
 
@@ -77,6 +78,21 @@ class TransactionEntity extends PersistentEntity {
     }
       .orElse(getTransactionHandler)
     // TODO: Complete
+  }
+
+  private val paymentPending = {
+    Actions().onCommand[SubmitPaymentDetails, Done] {
+      case (SubmitPaymentDetails(userId, payment), ctx, state) =>
+        if (userId == state.transaction.get.winner) {
+          ctx.thenPersist(PaymentDetailsSubmitted(UUID.fromString(entityId), payment))(_ => ctx.reply(Done))
+        } else {
+          throw Forbidden("Only the auction winner can submit payment details")
+        }
+    }.onEvent {
+      case (PaymentDetailsSubmitted(_, payment), state) =>
+        state.updatePayment(payment).withStatus(TransactionStatus.PaymentSubmitted)
+    } // TODO: Handle DeliverDetailsApproved event?
+      .orElse(getTransactionHandler)
   }
 
 }
