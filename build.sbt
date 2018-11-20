@@ -4,6 +4,7 @@ lazy val root = (project in file("."))
     biddingApi, biddingImpl,
     userApi, userImpl,
     searchApi, searchImpl,
+    transactionApi, transactionImpl,
     webGateway)
   .settings(commonSettings: _*)
 
@@ -122,8 +123,8 @@ lazy val transactionApi = (project in file("transaction-api"))
 
 lazy val transactionImpl = (project in file("transaction-impl"))
   .settings(commonSettings: _*)
-  // .enablePlugins(LagomScala)
-  .dependsOn(transactionApi, biddingApi)
+  .enablePlugins(LagomScala)
+  .dependsOn(transactionApi, itemApi)
   .settings(
     libraryDependencies ++= Seq(
       lagomScaladslPersistenceCassandra,
