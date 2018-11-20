@@ -3,9 +3,11 @@ package com.example.auction.transaction.impl
 import java.util.UUID
 
 import akka.Done
+import com.example.auction.utils.JsonFormats.enumFormat
 import com.lightbend.lagom.scaladsl.persistence.PersistentEntity.ReplyType
 import com.lightbend.lagom.scaladsl.playjson.JsonSerializer
 import play.api.libs.json.{Format, Json}
+
 
 trait TransactionCommand
 
@@ -42,3 +44,27 @@ case class SubmitPaymentDetails(userId: UUID, payment: Payment) extends Transact
 object SubmitPaymentDetails {
   implicit val format: Format[SubmitPaymentDetails] = Json.format
 }
+
+object PaymentStatus extends Enumeration {
+  val Approved, Rejected = Value
+  type Status = Value
+  implicit val format: Format[Status] = enumFormat(PaymentStatus)
+}
+
+case class SubmitPaymentStatus(userId: UUID, paymentStatus: PaymentStatus.Status) extends TransactionCommand with ReplyType[Done]
+
+object SubmitPaymentStatus {
+  implicit val format: Format[SubmitPaymentStatus] = Json.format
+}
+
+
+
+
+
+
+
+
+
+
+
+

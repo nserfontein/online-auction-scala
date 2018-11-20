@@ -29,6 +29,8 @@ class TransactionEntitySpec extends WordSpec with Matchers with BeforeAndAfterAl
   private val setDeliveryPrice = SetDeliveryPrice(creator, deliveryPrice)
   private val approveDeliveryDetails = ApproveDeliveryDetails(creator)
   private val submitPaymentDetails = SubmitPaymentDetails(winner, payment)
+  private val approvePayment = SubmitPaymentStatus(creator, PaymentStatus.Approved)
+  private val rejectPayment = SubmitPaymentStatus(creator, PaymentStatus.Rejected)
 
   private def withTestDriver(block: PersistentEntityTestDriver[TransactionCommand, TransactionEvent, TransactionState] => Unit): Unit = {
     val driver = new PersistentEntityTestDriver(system, new TransactionEntity, itemId.toString)
@@ -109,6 +111,49 @@ class TransactionEntitySpec extends WordSpec with Matchers with BeforeAndAfterAl
       outcome.state.status should ===(TransactionStatus.PaymentSubmitted)
       outcome.state.transaction.get.payment.get should ===(payment)
       outcome.events should contain only PaymentDetailsSubmitted(itemId, payment)
+    }
+
+    "forbid submitting payment details by non-buyer" in withTestDriver { driver =>
+      driver.run(startTransaction)
+      driver.run(submitDeliveryDetails)
+      driver.run(setDeliveryPrice)
+      driver.run(approveDeliveryDetails)
+      val hacker = UUID.randomUUID
+      val invalid = SubmitPaymentDetails(hacker, payment)
+      a[Forbidden] should be thrownBy driver.run(invalid)
+    }
+
+    "emit event when approving payment" in withTestDriver { driver =>
+      driver.run(startTransaction)
+      driver.run(submitDeliveryDetails)
+      driver.run(setDeliveryPrice)
+      driver.run(approveDeliveryDetails)
+      driver.run(submitPaymentDetails)
+      val outcome = driver.run(approvePayment)
+      outcome.state.status should ===(TransactionStatus.PaymentConfirmed)
+      outcome.events should contain only PaymentApproved(itemId)
+    }
+
+    "emit event when rejecting payment" in withTestDriver { driver =>
+      driver.run(startTransaction)
+      driver.run(submitDeliveryDetails)
+      driver.run(setDeliveryPrice)
+      driver.run(approveDeliveryDetails)
+      driver.run(submitPaymentDetails)
+      val outcome = driver.run(rejectPayment)
+      outcome.state.status should ===(TransactionStatus.PaymentPending)
+      outcome.events should contain only PaymentRejected(itemId)
+    }
+
+    "forbid submit payment status for non-seller" in withTestDriver { driver =>
+      driver.run(startTransaction)
+      driver.run(submitDeliveryDetails)
+      driver.run(setDeliveryPrice)
+      driver.run(approveDeliveryDetails)
+      driver.run(submitPaymentDetails)
+      val hacker = UUID.randomUUID
+      val invalid = SubmitPaymentStatus(hacker, PaymentStatus.Rejected)
+      a[Forbidden] should be thrownBy driver.run(invalid)
     }
 
   }

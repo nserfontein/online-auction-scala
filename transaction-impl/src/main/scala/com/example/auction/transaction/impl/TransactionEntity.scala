@@ -18,10 +18,11 @@ class TransactionEntity extends PersistentEntity {
     case TransactionState(_, TransactionStatus.NotStarted) => notStarted
     case TransactionState(_, TransactionStatus.NegotiatingDelivery) => negotiatingDelivery
     case TransactionState(_, TransactionStatus.PaymentPending) => paymentPending
+    case TransactionState(_, TransactionStatus.PaymentSubmitted) => paymentSubmitted
     // TODO: Complete
   }
 
-  private def getTransactionHandler = {
+  private def handleGetTransaction = {
     Actions().onReadOnlyCommand[GetTransaction.type, TransactionState] {
       case (GetTransaction, ctx, state) => ctx.reply(state)
     }
@@ -35,7 +36,7 @@ class TransactionEntity extends PersistentEntity {
       case (TransactionStarted(_, transaction), _) =>
         TransactionState.start(transaction)
     }
-      .orElse(getTransactionHandler)
+      .orElse(handleGetTransaction)
   }
 
   private val negotiatingDelivery = {
@@ -76,7 +77,7 @@ class TransactionEntity extends PersistentEntity {
       case (DeliveryDetailsApproved(_), state) =>
         state.withStatus(TransactionStatus.PaymentPending)
     }
-      .orElse(getTransactionHandler)
+      .orElse(handleGetTransaction)
     // TODO: Complete
   }
 
@@ -92,7 +93,31 @@ class TransactionEntity extends PersistentEntity {
       case (PaymentDetailsSubmitted(_, payment), state) =>
         state.updatePayment(payment).withStatus(TransactionStatus.PaymentSubmitted)
     } // TODO: Handle DeliverDetailsApproved event?
-      .orElse(getTransactionHandler)
+      .orElse(handleGetTransaction)
+  }
+
+  private val paymentSubmitted = {
+    Actions().onCommand[SubmitPaymentStatus, Done] {
+      case (SubmitPaymentStatus(userId, paymentStatus), ctx, state) =>
+        if (userId == state.transaction.get.creator) {
+          paymentStatus match {
+            case PaymentStatus.Approved =>
+              ctx.thenPersist(PaymentApproved(UUID.fromString(entityId)))(_ => ctx.reply(Done))
+            case PaymentStatus.Rejected =>
+              ctx.thenPersist(PaymentRejected(UUID.fromString(entityId)))(_ => ctx.reply(Done))
+            case _ =>
+              throw new IllegalArgumentException("Illegal payment status")
+          }
+        } else {
+          throw Forbidden("Only the item creator can approve or reject payment")
+        }
+    }.onEvent {
+      case (PaymentApproved(_), state) =>
+        state.withStatus(TransactionStatus.PaymentConfirmed)
+      case (PaymentRejected(_), state) =>
+        state.withStatus(TransactionStatus.PaymentPending)
+    }
+      .orElse(handleGetTransaction)
   }
 
 }
