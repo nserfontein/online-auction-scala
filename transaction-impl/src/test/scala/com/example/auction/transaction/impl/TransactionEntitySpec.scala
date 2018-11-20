@@ -25,6 +25,7 @@ class TransactionEntitySpec extends WordSpec with Matchers with BeforeAndAfterAl
   private val transaction = Transaction(itemId, creator, winner, itemData, 2000)
   private val startTransaction = StartTransaction(transaction)
   private val submitDeliveryDetails = SubmitDeliveryDetails(winner, deliveryData)
+  private val setDeliveryPrice = SetDeliveryPrice(creator, deliveryPrice)
 
   private def withTestDriver(block: PersistentEntityTestDriver[TransactionCommand, TransactionEvent, TransactionState] => Unit): Unit = {
     val driver = new PersistentEntityTestDriver(system, new TransactionEntity, itemId.toString)
@@ -56,6 +57,14 @@ class TransactionEntitySpec extends WordSpec with Matchers with BeforeAndAfterAl
       val hacker = UUID.randomUUID()
       val invalid = SubmitDeliveryDetails(hacker, deliveryData)
       a[Forbidden] should be thrownBy driver.run(invalid)
+    }
+
+    "emit event when setting delivery price" in withTestDriver { driver =>
+      driver.run(startTransaction)
+      val outcome = driver.run(setDeliveryPrice)
+      outcome.state.status should ===(TransactionStatus.NegotiatingDelivery)
+      outcome.state.transaction.get.deliveryPrice.get should ===(deliveryPrice)
+      outcome.events should contain only DeliveryPriceUpdated(itemId, deliveryPrice)
     }
 
   }

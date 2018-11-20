@@ -42,14 +42,24 @@ class TransactionEntity extends PersistentEntity {
       case (StartTransaction(_), ctx, _) => ctx.reply(Done)
     }.onCommand[SubmitDeliveryDetails, Done] {
       case (SubmitDeliveryDetails(userId, deliveryData), ctx, state) =>
-        if (userId == state.transaction.get.winner)        {
+        if (userId == state.transaction.get.winner) {
           ctx.thenPersist(DeliveryDetailsSubmitted(UUID.fromString(entityId), deliveryData))(_ => ctx.reply(Done))
         } else {
           throw Forbidden("Only the auction winner can submit delivery details")
         }
+    }.onCommand[SetDeliveryPrice, Done] {
+      case (SetDeliveryPrice(userId, deliveryPrice), ctx, state) =>
+        if (userId == state.transaction.get.creator) {
+          ctx.thenPersist(DeliveryPriceUpdated(UUID.fromString(entityId), deliveryPrice))(_ => ctx.reply(Done))
+        } else {
+          throw Forbidden("Only the item creator can set the delivery price")
+        }
     }.onEvent {
       case (DeliveryDetailsSubmitted(itemId, deliveryData), state) =>
         state.updateDeliveryData(deliveryData)
+    }.onEvent {
+      case (DeliveryPriceUpdated(_, deliveryPrice), state) =>
+        state.updateDeliveryPrice(deliveryPrice)
     }
       .orElse(getTransactionHandler)
     // TODO: Complete
