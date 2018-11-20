@@ -54,12 +54,26 @@ class TransactionEntity extends PersistentEntity {
         } else {
           throw Forbidden("Only the item creator can set the delivery price")
         }
+    }.onCommand[ApproveDeliveryDetails, Done] {
+      case (ApproveDeliveryDetails(userId), ctx, state) =>
+        if (userId == state.transaction.get.creator) {
+          if (state.transaction.get.deliveryData.isDefined && state.transaction.get.deliveryPrice.isDefined) {
+            ctx.thenPersist(DeliveryDetailsApproved(UUID.fromString(entityId)))(_ => ctx.reply(Done))
+          } else {
+            throw Forbidden("Can't approve empty delivery detail")
+          }
+        } else {
+          throw Forbidden("Only the item creator can approve the delivery details")
+        }
     }.onEvent {
-      case (DeliveryDetailsSubmitted(itemId, deliveryData), state) =>
+      case (DeliveryDetailsSubmitted(_, deliveryData), state) =>
         state.updateDeliveryData(deliveryData)
     }.onEvent {
       case (DeliveryPriceUpdated(_, deliveryPrice), state) =>
         state.updateDeliveryPrice(deliveryPrice)
+    }.onEvent {
+      case (DeliveryDetailsApproved(_), state) =>
+        state.withStatus(TransactionStatus.PaymentPending)
     }
       .orElse(getTransactionHandler)
     // TODO: Complete

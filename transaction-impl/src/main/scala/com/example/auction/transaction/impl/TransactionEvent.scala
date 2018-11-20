@@ -31,3 +31,9 @@ case class DeliveryPriceUpdated(itemId: UUID, deliveryPrice: Int) extends Transa
 object DeliveryPriceUpdated {
   implicit val format: Format[DeliveryPriceUpdated] = Json.format
 }
+
+case class DeliveryDetailsApproved(itemId: UUID) extends TransactionEvent
+
+object DeliveryDetailsApproved {
+  implicit val format: Format[DeliveryDetailsApproved] = Json.format
+}
