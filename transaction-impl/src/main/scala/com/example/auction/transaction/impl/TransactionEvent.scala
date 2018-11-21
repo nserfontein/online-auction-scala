@@ -56,19 +56,3 @@ case class PaymentRejected(itemId: UUID) extends TransactionEvent
 object PaymentRejected {
   implicit val format: Format[PaymentRejected] = Json.format
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

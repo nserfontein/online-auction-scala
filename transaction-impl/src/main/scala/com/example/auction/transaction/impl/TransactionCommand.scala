@@ -58,15 +58,3 @@ case class SubmitPaymentStatus(userId: UUID, paymentStatus: PaymentStatus.Status
 object SubmitPaymentStatus {
   implicit val format: Format[SubmitPaymentStatus] = Json.format
 }
-
-
-
-
-
-
-
-
-
-
-
-
