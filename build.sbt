@@ -123,7 +123,7 @@ lazy val transactionApi = (project in file("transaction-api"))
 
 lazy val transactionImpl = (project in file("transaction-impl"))
   .settings(commonSettings: _*)
-  .enablePlugins(LagomScala)
+  .enablePlugins(LagomScala, SbtReactiveAppPlugin)
   .dependsOn(transactionApi, itemApi)
   .settings(
     libraryDependencies ++= Seq(

@@ -6,6 +6,7 @@ import com.lightbend.lagom.scaladsl.persistence.{AggregateEvent, AggregateEventT
 import play.api.libs.json.{Format, Json}
 
 trait TransactionEvent extends AggregateEvent[TransactionEvent] {
+  val itemId: UUID
   override def aggregateTag: AggregateEventTagger[TransactionEvent] = TransactionEvent.Tag
 }
 
