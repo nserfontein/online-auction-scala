@@ -46,7 +46,6 @@ class TransactionServiceImplIntegrationTest extends WordSpec with Matchers with 
 
   val awaitTimeout = 10.seconds
 
-  // TODO: Use loan
   def fixture = new {
     val itemId = UUIDs.timeBased()
     val creatorId = UUID.randomUUID()
