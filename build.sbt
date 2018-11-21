@@ -125,6 +125,7 @@ lazy val transactionImpl = (project in file("transaction-impl"))
   .settings(commonSettings: _*)
   .enablePlugins(LagomScala, SbtReactiveAppPlugin)
   .dependsOn(transactionApi, itemApi)
+  .settings(lagomForkedTestSettings: _*)
   .settings(
     libraryDependencies ++= Seq(
       lagomScaladslPersistenceCassandra,

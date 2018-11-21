@@ -30,11 +30,13 @@ class TransactionServiceImpl(registry: PersistentEntityRegistry, itemService: It
     case _ => Future.successful(Done)
   })
 
-  override def submitDeliveryDetails(itemId: UUID): ServiceCall[DeliveryInfo, Done] = authenticated(userId => ServerServiceCall { deliveryInfo =>
+  override def submitDeliveryDetails(itemId: UUID) = authenticated(userId => ServerServiceCall { deliveryInfo =>
     entityRef(itemId).ask(SubmitDeliveryDetails(userId, TransactionMappers.fromApiDelivery(deliveryInfo)))
   })
 
-  override def setDeliveryPrice(itemId: UUID): ServiceCall[Int, Done] = ???
+  override def setDeliveryPrice(itemId: UUID) = authenticated(userId => ServerServiceCall { deliveryPrice =>
+    entityRef(itemId).ask(SetDeliveryPrice(userId, deliveryPrice))
+  })
 
   override def approveDeliveryDetails(itemId: UUID): ServiceCall[NotUsed, Done] = ???
 
