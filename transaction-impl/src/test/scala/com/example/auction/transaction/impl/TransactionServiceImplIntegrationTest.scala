@@ -6,22 +6,25 @@ import java.util.UUID
 import com.example.auction.item.api.ItemStatus.Status
 import com.example.auction.item.api._
 import com.example.auction.security.ClientSecurity._
-import com.example.auction.transaction.api.{TransactionInfo, TransactionInfoStatus, TransactionService}
+import com.example.auction.transaction.api.{DeliveryInfo, TransactionInfo, TransactionInfoStatus, TransactionService}
 import com.lightbend.lagom.scaladsl.api.AdditionalConfiguration
+import com.lightbend.lagom.scaladsl.api.transport.NotFound
 import com.lightbend.lagom.scaladsl.server.LocalServiceLocator
-import com.lightbend.lagom.scaladsl.testkit.{ProducerStub, ProducerStubFactory, ServiceTest, TestTopicComponents}
+import com.lightbend.lagom.scaladsl.testkit.{ProducerStub, ProducerStubFactory, ServiceTest}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 import play.api.Configuration
 
-import scala.concurrent.Future
+import scala.concurrent.Await
+import scala.concurrent.duration._
 
 class TransactionServiceImplIntegrationTest extends WordSpec with Matchers with Eventually with ScalaFutures with BeforeAndAfterAll {
 
-  private var itemProducerStub: ProducerStub[ItemEvent] = _
+  val awaitTimeout = 2.seconds
+  var itemProducerStub: ProducerStub[ItemEvent] = _
 
-  private val server = ServiceTest.startServer(ServiceTest.defaultSetup.withCassandra(true)) { ctx =>
+  val server = ServiceTest.startServer(ServiceTest.defaultSetup.withCassandra(true)) { ctx =>
     new TransactionApplication(ctx) with LocalServiceLocator {
 
       val stubFactory = new ProducerStubFactory(actorSystem, materializer)
@@ -37,43 +40,73 @@ class TransactionServiceImplIntegrationTest extends WordSpec with Matchers with 
     }
   }
 
-  private val transactionService = server.serviceClient.implement[TransactionService]
+  val transactionService = server.serviceClient.implement[TransactionService]
 
   override def afterAll = server.stop()
 
-  private val itemId = UUID.randomUUID()
-  private val creatorId = UUID.randomUUID()
-  private val winnerId = UUID.randomUUID()
-  private val itemPrice = 5000
-  private val itemData = ItemData("title", "desc", "EUR", 1, 10, Duration.ofMinutes(10), None)
-  private val item = Item(Some(itemId), creatorId, itemData, Some(itemPrice), ItemStatus.Completed, Some(Instant.now), Some(Instant.now), Some(winnerId))
-  private val auctionFinished = AuctionFinished(itemId, item)
+  val itemId = UUID.randomUUID()
+  val creatorId = UUID.randomUUID()
+  val winnerId = UUID.randomUUID()
+  val itemPrice = 5000
+  val itemData = ItemData("title", "desc", "EUR", 1, 10, Duration.ofMinutes(10), None)
+  val item = Item(Some(itemId), creatorId, itemData, Some(itemPrice), ItemStatus.Completed, Some(Instant.now), Some(Instant.now), Some(winnerId))
+  val auctionFinished = AuctionFinished(itemId, item)
 
-  private val transactionInfoStarted = TransactionInfo(itemId, creatorId, winnerId, itemData, itemPrice, None, None, None, TransactionInfoStatus.NegotiatingDelivery)
+  val deliveryInfo = DeliveryInfo("ADDR1", "ADDR2", "CITY", "STATE", 27, "COUNTRY")
+
+  val transactionInfoStarted = TransactionInfo(itemId, creatorId, winnerId, itemData, itemPrice, None, None, None, TransactionInfoStatus.NegotiatingDelivery)
+  val transactionInfoWithDeliveryInfo = new TransactionInfo(itemId, creatorId, winnerId, itemData, item.price.get, Some(deliveryInfo), None, None, TransactionInfoStatus.NegotiatingDelivery);
 
   "The Transaction service" should {
 
     "create transaction on auction finished" in {
       itemProducerStub.send(auctionFinished)
       eventually(timeout(Span(10, Seconds))) {
-        val retrievedTransaction = retrieveTransaction(itemId, creatorId)
-        whenReady(retrievedTransaction) { resp =>
-          resp should ===(transactionInfoStarted)
-        }
+        retrieveTransaction(itemId, creatorId) should ===(transactionInfoStarted)
+      }
+    }
+
+    "not create transaction with no winner" in {
+      val itemIdWithNoWinner = UUID.randomUUID()
+      val itemWithNoWinner = Item(Some(itemIdWithNoWinner), creatorId, itemData, Some(itemPrice), ItemStatus.Completed, Some(Instant.now()), Some(Instant.now()), None)
+      val auctionFinishedWithNoWinner = AuctionFinished(itemIdWithNoWinner, itemWithNoWinner)
+      itemProducerStub.send(auctionFinishedWithNoWinner)
+      a[NotFound] should be thrownBy retrieveTransaction(itemIdWithNoWinner, creatorId)
+    }
+
+    "submit delivery details" in {
+      itemProducerStub.send(auctionFinished)
+      submitDeliveryDetails(itemId, winnerId, deliveryInfo)
+      eventually(timeout(Span(15, Seconds))) {
+        retrieveTransaction(itemId, creatorId) should ===(transactionInfoWithDeliveryInfo)
       }
     }
 
   }
 
-  private def retrieveTransaction(itemId: UUID, creatorId: UUID): Future[TransactionInfo] = {
-    transactionService.getTransaction(itemId)
-      .handleRequestHeader(authenticate(creatorId))
-      .invoke()
+  private def retrieveTransaction(itemId: UUID, creatorId: UUID): TransactionInfo = {
+    Await.result(
+      transactionService.getTransaction(itemId)
+        .handleRequestHeader(authenticate(creatorId))
+        .invoke(),
+      awaitTimeout
+    )
   }
+
+  private def submitDeliveryDetails(itemId: UUID, winnerId: UUID, deliveryInfo: DeliveryInfo) = {
+    Await.result(
+      transactionService.submitDeliveryDetails(itemId)
+        .handleRequestHeader(authenticate(winnerId))
+        .invoke(deliveryInfo),
+      awaitTimeout
+    )
+  }
+
+
 
 }
 
-private class ItemStub(itemProducerStub: ProducerStub[ItemEvent]) extends ItemService {
+class ItemStub(itemProducerStub: ProducerStub[ItemEvent]) extends ItemService {
 
   override def createItem = ???
 

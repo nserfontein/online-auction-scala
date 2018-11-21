@@ -17,6 +17,17 @@ object TransactionMappers {
     }
   }
 
+  def fromApiDelivery(data: DeliveryInfo): DeliveryData = {
+    DeliveryData(
+      data.addressLine1,
+      data.addressLine2,
+      data.city,
+      data.state,
+      data.postalCode,
+      data.country
+    )
+  }
+
   def toApiPayment(data: Option[Payment]): Option[PaymentInfo] = {
     data.flatMap {
       case OfflinePayment(comment) => Some(OfflinePaymentInfo(comment))
