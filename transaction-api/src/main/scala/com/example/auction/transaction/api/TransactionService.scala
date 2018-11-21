@@ -29,11 +29,11 @@ trait TransactionService extends Service {
 
   def submitPaymentStatus(itemId: UUID): ServiceCall[PaymentInfoStatus.Status, Done]
 
-  def dispatchItem(itemId: UUID): ServiceCall[NotUsed, Done]
+  // def dispatchItem(itemId: UUID): ServiceCall[NotUsed, Done]
 
-  def receiveItem(itemId: UUID): ServiceCall[NotUsed, Done]
+  // def receiveItem(itemId: UUID): ServiceCall[NotUsed, Done]
 
-  def initiateRefund(itemId: UUID): ServiceCall[NotUsed, Done]
+  // def initiateRefund(itemId: UUID): ServiceCall[NotUsed, Done]
 
   def getTransaction(itemId: UUID): ServiceCall[NotUsed, TransactionInfo]
 

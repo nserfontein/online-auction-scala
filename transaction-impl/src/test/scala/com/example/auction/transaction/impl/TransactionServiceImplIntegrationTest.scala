@@ -9,12 +9,12 @@ import com.example.auction.item.api._
 import com.example.auction.security.ClientSecurity._
 import com.example.auction.transaction.api._
 import com.lightbend.lagom.scaladsl.api.AdditionalConfiguration
-import com.lightbend.lagom.scaladsl.api.transport.NotFound
+import com.lightbend.lagom.scaladsl.api.transport.{Forbidden, NotFound}
 import com.lightbend.lagom.scaladsl.server.LocalServiceLocator
 import com.lightbend.lagom.scaladsl.testkit.{ProducerStub, ProducerStubFactory, ServiceTest}
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.time.{Seconds, Span}
-import org.scalatest.{BeforeAndAfterAll, Matchers, OneInstancePerTest, WordSpec}
+import org.scalatest.{BeforeAndAfterAll, Matchers, WordSpec}
 import play.api.Configuration
 
 import scala.concurrent.Await
@@ -22,7 +22,6 @@ import scala.concurrent.duration._
 
 class TransactionServiceImplIntegrationTest extends WordSpec with Matchers with Eventually with ScalaFutures with BeforeAndAfterAll {
 
-  val awaitTimeout = 10.seconds
   var itemProducerStub: ProducerStub[ItemEvent] = _
 
   val server = ServiceTest.startServer(ServiceTest.defaultSetup.withCassandra(true)) { ctx =>
@@ -45,6 +44,8 @@ class TransactionServiceImplIntegrationTest extends WordSpec with Matchers with 
 
   override def afterAll = server.stop()
 
+  val awaitTimeout = 10.seconds
+
   // TODO: Use loan
   def fixture = new {
     val itemId = UUIDs.timeBased()
@@ -62,6 +63,10 @@ class TransactionServiceImplIntegrationTest extends WordSpec with Matchers with 
     val transactionInfoStarted = TransactionInfo(itemId, creatorId, winnerId, itemData, itemPrice, None, None, None, TransactionInfoStatus.NegotiatingDelivery)
     val transactionInfoWithDeliveryInfo = TransactionInfo(itemId, creatorId, winnerId, itemData, item.price.get, Some(deliveryInfo), None, None, TransactionInfoStatus.NegotiatingDelivery)
     val transactionInfoWithDeliveryPrice = TransactionInfo(itemId, creatorId, winnerId, itemData, item.price.get, None, Some(deliveryPrice), None, TransactionInfoStatus.NegotiatingDelivery)
+    val transactionInfoWithPaymentPending = TransactionInfo(itemId, creatorId, winnerId, itemData, item.price.get, Some(deliveryInfo), Some(deliveryPrice), None, TransactionInfoStatus.PaymentPending)
+    val transactionInfoWithPaymentDetails = TransactionInfo(itemId, creatorId, winnerId, itemData, item.price.get, Some(deliveryInfo), Some(deliveryPrice), Some(paymentInfo), TransactionInfoStatus.PaymentSubmitted)
+    val transactionInfoWithPaymentApproved = TransactionInfo(itemId, creatorId, winnerId, itemData, item.price.get, Some(deliveryInfo), Some(deliveryPrice), Some(paymentInfo), TransactionInfoStatus.PaymentConfirmed)
+    val transactionInfoWithPaymentRejected = TransactionInfo(itemId, creatorId, winnerId, itemData, item.price.get, Some(deliveryInfo), Some(deliveryPrice), Some(paymentInfo), TransactionInfoStatus.PaymentPending)
   }
 
   "The Transaction service" should {
@@ -101,6 +106,61 @@ class TransactionServiceImplIntegrationTest extends WordSpec with Matchers with 
       }
     }
 
+    "approve delivery details" in {
+      val f = fixture
+      itemProducerStub.send(f.auctionFinished)
+      submitDeliveryDetails(f.itemId, f.winnerId, f.deliveryInfo)
+      setDeliveryPrice(f.itemId, f.creatorId, f.deliveryPrice)
+      approveDeliveryDetails(f.itemId, f.creatorId)
+      eventually(timeout(Span(15, Seconds))) {
+        retrieveTransaction(f.itemId, f.creatorId) should ===(f.transactionInfoWithPaymentPending)
+      }
+    }
+
+    "forbid approve empty delivery details" in {
+      val f = fixture
+      itemProducerStub.send(f.auctionFinished)
+      a[Forbidden] should be thrownBy approveDeliveryDetails(f.itemId, f.creatorId)
+    }
+
+    "submit payment details" in {
+      val f = fixture
+      itemProducerStub.send(f.auctionFinished)
+      submitDeliveryDetails(f.itemId, f.winnerId, f.deliveryInfo)
+      setDeliveryPrice(f.itemId, f.creatorId, f.deliveryPrice)
+      approveDeliveryDetails(f.itemId, f.creatorId)
+      submitPaymentDetails(f.itemId, f.winnerId, f.paymentInfo)
+      eventually(timeout(Span(15, Seconds))) {
+        retrieveTransaction(f.itemId, f.creatorId) should ===(f.transactionInfoWithPaymentDetails)
+      }
+    }
+
+    "approve payment" in {
+      val f = fixture
+      itemProducerStub.send(f.auctionFinished)
+      submitDeliveryDetails(f.itemId, f.winnerId, f.deliveryInfo)
+      setDeliveryPrice(f.itemId, f.creatorId, f.deliveryPrice)
+      approveDeliveryDetails(f.itemId, f.creatorId)
+      submitPaymentDetails(f.itemId, f.winnerId, f.paymentInfo)
+      approvePayment(f.itemId, f.creatorId)
+      eventually(timeout(Span(15, Seconds))) {
+        retrieveTransaction(f.itemId, f.creatorId) should ===(f.transactionInfoWithPaymentApproved)
+      }
+    }
+
+    "reject payment" in {
+      val f = fixture
+      itemProducerStub.send(f.auctionFinished)
+      submitDeliveryDetails(f.itemId, f.winnerId, f.deliveryInfo)
+      setDeliveryPrice(f.itemId, f.creatorId, f.deliveryPrice)
+      approveDeliveryDetails(f.itemId, f.creatorId)
+      submitPaymentDetails(f.itemId, f.winnerId, f.paymentInfo)
+      rejectPayment(f.itemId, f.creatorId)
+      eventually(timeout(Span(15, Seconds))) {
+        retrieveTransaction(f.itemId, f.creatorId) should ===(f.transactionInfoWithPaymentRejected)
+      }
+    }
+
   }
 
   private def retrieveTransaction(itemId: UUID, creatorId: UUID): TransactionInfo = {
@@ -112,7 +172,7 @@ class TransactionServiceImplIntegrationTest extends WordSpec with Matchers with 
     )
   }
 
-  private def submitDeliveryDetails(itemId: UUID, winnerId: UUID, deliveryInfo: DeliveryInfo) = {
+  private def submitDeliveryDetails(itemId: UUID, winnerId: UUID, deliveryInfo: DeliveryInfo): Unit = {
     Await.result(
       transactionService.submitDeliveryDetails(itemId)
         .handleRequestHeader(authenticate(winnerId))
@@ -121,7 +181,7 @@ class TransactionServiceImplIntegrationTest extends WordSpec with Matchers with 
     )
   }
 
-  private def setDeliveryPrice(itemId: UUID, creatorId: UUID, deliveryPrice: Int) = {
+  private def setDeliveryPrice(itemId: UUID, creatorId: UUID, deliveryPrice: Int): Unit = {
     Await.result(
       transactionService.setDeliveryPrice(itemId)
         .handleRequestHeader(authenticate(creatorId))
@@ -130,6 +190,41 @@ class TransactionServiceImplIntegrationTest extends WordSpec with Matchers with 
     )
   }
 
+  private def approveDeliveryDetails(itemId: UUID, creatorId: UUID): Unit = {
+    Await.result(
+      transactionService.approveDeliveryDetails(itemId)
+        .handleRequestHeader(authenticate(creatorId))
+        .invoke(),
+      awaitTimeout
+    )
+  }
+
+  private def submitPaymentDetails(itemId: UUID, winnerId: UUID, paymentInfo: PaymentInfo): Unit = {
+    Await.result(
+      transactionService.submitPaymentDetails(itemId)
+        .handleRequestHeader(authenticate(winnerId))
+        .invoke(paymentInfo),
+      awaitTimeout
+    )
+  }
+
+  private def approvePayment(itemId: UUID, creatorId: UUID) = {
+    Await.result(
+      transactionService.submitPaymentStatus(itemId)
+        .handleRequestHeader(authenticate(creatorId))
+        .invoke(PaymentInfoStatus.Approved),
+      awaitTimeout
+    )
+  }
+
+  private def rejectPayment(itemId: UUID, creatorId: UUID) = {
+    Await.result(
+      transactionService.submitPaymentStatus(itemId)
+        .handleRequestHeader(authenticate(creatorId))
+        .invoke(PaymentInfoStatus.Rejected),
+      awaitTimeout
+    )
+  }
 
 }
 

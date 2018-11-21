@@ -38,17 +38,17 @@ class TransactionServiceImpl(registry: PersistentEntityRegistry, itemService: It
     entityRef(itemId).ask(SetDeliveryPrice(userId, deliveryPrice))
   })
 
-  override def approveDeliveryDetails(itemId: UUID): ServiceCall[NotUsed, Done] = ???
+  override def approveDeliveryDetails(itemId: UUID) = authenticated(userId => ServerServiceCall { _ =>
+    entityRef(itemId).ask(ApproveDeliveryDetails(userId))
+  })
 
-  override def submitPaymentDetails(itemId: UUID): ServiceCall[PaymentInfo, Done] = ???
+  override def submitPaymentDetails(itemId: UUID) = authenticated(userId => ServerServiceCall { paymentInfo =>
+    entityRef(itemId).ask(SubmitPaymentDetails(userId, TransactionMappers.fromApiPayment(paymentInfo)))
+  })
 
-  override def submitPaymentStatus(itemId: UUID): ServiceCall[PaymentInfoStatus.Status, Done] = ???
-
-  override def dispatchItem(itemId: UUID): ServiceCall[NotUsed, Done] = ???
-
-  override def receiveItem(itemId: UUID): ServiceCall[NotUsed, Done] = ???
-
-  override def initiateRefund(itemId: UUID): ServiceCall[NotUsed, Done] = ???
+  override def submitPaymentStatus(itemId: UUID) = authenticated(userId => ServerServiceCall { paymentInfoStatus =>
+    entityRef(itemId).ask(SubmitPaymentStatus(userId, TransactionMappers.fromApi(paymentInfoStatus)))
+  })
 
   override def getTransaction(itemId: UUID) = authenticated(userId => ServerServiceCall { _ =>
     entityRef(itemId)

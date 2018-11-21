@@ -1,6 +1,6 @@
 package com.example.auction.transaction.impl
 
-import com.example.auction.transaction.api.{DeliveryInfo, OfflinePaymentInfo, PaymentInfo, TransactionInfo}
+import com.example.auction.transaction.api._
 
 object TransactionMappers {
 
@@ -35,6 +35,13 @@ object TransactionMappers {
     }
   }
 
+  def fromApiPayment(data: PaymentInfo): OfflinePayment = {
+    data match {
+      case OfflinePaymentInfo(comment) => OfflinePayment(comment)
+      case _ => throw new IllegalArgumentException("Mapping not payment class")
+    }
+  }
+
   def toApi(data: TransactionState): TransactionInfo = {
     // TransactionEntity verifies if a transaction in TransactionState is set
     // This code is called after this verification was done from TransactionServiceImpl
@@ -51,6 +58,14 @@ object TransactionMappers {
       toApiPayment(transaction.payment),
       TransactionStatus.transactionInfoStatus(data.status)
     )
+  }
+
+  def fromApi(paymentInfoStatus: PaymentInfoStatus.Status): PaymentStatus.Status = {
+    paymentInfoStatus match {
+      case PaymentInfoStatus.Approved => PaymentStatus.Approved
+      case PaymentInfoStatus.Rejected => PaymentStatus.Rejected
+      case _ => throw new IllegalStateException("Mapping non payment status class")
+    }
   }
 
 }
