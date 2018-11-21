@@ -128,6 +128,7 @@ lazy val transactionImpl = (project in file("transaction-impl"))
   .settings(
     libraryDependencies ++= Seq(
       lagomScaladslPersistenceCassandra,
+      lagomScaladslKafkaClient,
       lagomScaladslTestKit,
       macwire,
       scalaTest

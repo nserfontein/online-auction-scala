@@ -3,6 +3,7 @@ package com.example.auction.transaction.impl
 import java.util.UUID
 
 import com.example.auction.item.api.ItemData
+import com.example.auction.transaction.api.TransactionInfoStatus
 import com.example.auction.utils.JsonFormats.enumFormat
 import julienrf.json.derived
 import play.api.libs.json._
@@ -102,5 +103,20 @@ object TransactionStatus extends Enumeration {
   type Status = Value
 
   implicit val format: Format[Status] = enumFormat(TransactionStatus)
+
+  def transactionInfoStatus(status: Status): TransactionInfoStatus.Value = {
+    status match {
+      case NegotiatingDelivery => TransactionInfoStatus.NegotiatingDelivery
+      case PaymentPending => TransactionInfoStatus.PaymentPending
+      case PaymentSubmitted => TransactionInfoStatus.PaymentSubmitted
+      case PaymentConfirmed => TransactionInfoStatus.PaymentConfirmed
+      case ItemDispatched => TransactionInfoStatus.ItemDispatched
+      case ItemReceived => TransactionInfoStatus.ItemReceived
+      case Cancelled => TransactionInfoStatus.Cancelled
+      case Refunding => TransactionInfoStatus.Refunding
+      case Refunded => TransactionInfoStatus.Refunded
+      case _ => throw new IllegalStateException(s"Cannot map $status")
+    }
+  }
 
 }

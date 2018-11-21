@@ -11,11 +11,8 @@ import com.example.auction.item.api.ItemData
 import com.example.auction.transaction.api.{TransactionInfoStatus, TransactionSummary}
 import com.example.auction.utils.PaginatedSequence
 import com.lightbend.lagom.scaladsl.api.ServiceLocator.NoServiceLocator
-import com.lightbend.lagom.scaladsl.broker.kafka.LagomKafkaComponents
-import com.lightbend.lagom.scaladsl.server.LagomApplication
 import com.lightbend.lagom.scaladsl.testkit.{ReadSideTestDriver, ServiceTest}
 import org.scalatest.{AsyncWordSpec, BeforeAndAfterAll, Matchers}
-import play.api.libs.ws.ahc.AhcWSComponents
 
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -23,7 +20,7 @@ import scala.concurrent.{Await, Future}
 class TransactionRepositorySpec extends AsyncWordSpec with BeforeAndAfterAll with Matchers {
 
   private val server = ServiceTest.startServer(ServiceTest.defaultSetup.withCassandra(enabled = true)) { ctx =>
-    new LagomApplication(ctx) with TransactionComponents with AhcWSComponents with LagomKafkaComponents {
+    new TransactionApplication(ctx) {
 
       override def serviceLocator = NoServiceLocator
 
